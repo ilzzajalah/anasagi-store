@@ -148,6 +148,28 @@ function AppContent() {
     );
   };
 
+  const isChatRoute = pathname === '/inbox' || pathname.startsWith('/chat/');
+  const isIndividualChat = pathname.startsWith('/chat/');
+
+  if (isChatRoute) {
+    return (
+      <div className="h-screen h-[100dvh] bg-neutral-50 dark:bg-[#0a0a0a] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors overflow-hidden">
+        <Toaster position="top-center" richColors />
+        <Navbar currentPath={pathname} navigate={navigate} />
+
+        <main className="flex-1 w-full overflow-hidden">
+          {renderRoute()}
+        </main>
+
+        {!isIndividualChat && (
+          <div className="md:hidden">
+            <MobileBottomNav currentPath={pathname} navigate={navigate} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-[#0a0a0a] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors">
       <Toaster position="top-center" richColors />

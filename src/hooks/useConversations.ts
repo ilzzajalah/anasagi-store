@@ -15,6 +15,8 @@ import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Conversation, Message, Product, UserProfile } from '../types';
 import { formatRupiah } from '../lib/utils';
 
+import { storeLocalMediaBlob, compressImageForChat, generateVideoThumbnail } from '../lib/mediaStorage';
+
 export function useConversations(userId?: string) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,10 +182,14 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
     }, 2500);
   };
 
-  const sendMessage = async (content: string, senderProfile: UserProfile) => {
+  const sendMessage = async (
+    content: string,
+    senderProfile: UserProfile,
+    mediaFile?: File | null
+  ) => {
     if (!conversationId || !conversation || !currentUserId) return;
     const trimmed = content.trim();
-    if (!trimmed || trimmed.length > 1000) return;
+    if (!trimmed && !mediaFile) return;
 
     if (typingTimerRef.current) {
       clearTimeout(typingTimerRef.current);
@@ -197,23 +203,63 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
       const msgCol = collection(db, 'conversations', conversationId, 'messages');
       const now = new Date().toISOString();
 
+      let mediaType: 'image' | 'video' | undefined = undefined;
+      let mediaUrl: string | undefined = undefined;
+      let thumbnailUrl: string | undefined = undefined;
+      let mediaName: string | undefined = undefined;
+      let mediaSize: number | undefined = undefined;
+
+      if (mediaFile) {
+        mediaName = mediaFile.name;
+        mediaSize = mediaFile.size;
+
+        if (mediaFile.type.startsWith('video/')) {
+          mediaType = 'video';
+          try {
+            thumbnailUrl = await generateVideoThumbnail(mediaFile);
+          } catch (e) {
+            console.warn('Failed to generate video thumbnail:', e);
+          }
+        } else if (mediaFile.type.startsWith('image/')) {
+          mediaType = 'image';
+          try {
+            thumbnailUrl = await compressImageForChat(mediaFile);
+            mediaUrl = thumbnailUrl;
+          } catch (e) {
+            console.warn('Failed image compression:', e);
+          }
+        }
+      }
+
+      const lastMsgSummary = mediaType
+        ? (mediaType === 'image' ? '📷 Foto' : '🎥 Video') + (trimmed ? `: ${trimmed}` : '')
+        : trimmed;
+
       const newMsg: Omit<Message, 'id'> = {
         conversationId,
         senderId: currentUserId,
         senderName: senderProfile.name || 'Pengguna',
         content: trimmed,
+        ...(mediaType ? { mediaType, mediaName, mediaSize } : {}),
+        ...(mediaUrl ? { mediaUrl } : {}),
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
         isRead: false,
         createdAt: now,
       };
 
-      await addDoc(msgCol, newMsg);
+      const docRef = await addDoc(msgCol, newMsg);
+
+      // Store raw full file blob in IndexedDB for playing/downloading on client
+      if (mediaFile && docRef.id) {
+        await storeLocalMediaBlob(docRef.id, mediaFile);
+      }
 
       // Update conversation lastMessage & unread count
       const isBuyer = conversation.buyerId === currentUserId;
       const convRef = doc(db, 'conversations', conversationId);
 
       await updateDoc(convRef, {
-        lastMessage: trimmed,
+        lastMessage: lastMsgSummary,
         lastMessageAt: now,
         lastMessageSenderId: currentUserId,
         unreadBuyerCount: isBuyer ? conversation.unreadBuyerCount : (conversation.unreadBuyerCount || 0) + 1,

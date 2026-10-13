@@ -68,6 +68,11 @@ export interface Message {
   content: string;
   isProductCard?: boolean;
   productId?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+  mediaName?: string;
+  mediaSize?: number;
+  thumbnailUrl?: string;
   isRead: boolean;
   createdAt: string;
 }
