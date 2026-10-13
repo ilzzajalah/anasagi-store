@@ -12,6 +12,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ChatRoomPageProps {
   conversationId: string;
@@ -20,7 +21,7 @@ interface ChatRoomPageProps {
 
 export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
   const { user, profile } = useAuth();
-  const { conversation, messages, loading, sendMessage } = useChatRoom(
+  const { conversation, messages, partnerIsTyping, handleTyping, loading, sendMessage } = useChatRoom(
     conversationId,
     user?.uid
   );
@@ -35,7 +36,12 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, partnerIsTyping]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputMsg(e.target.value);
+    handleTyping();
+  };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -103,37 +109,46 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/inbox')}
-            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg"
+            className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white rounded-lg transition-transform active:scale-95"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          {partnerAvatar ? (
-            <img
-              src={partnerAvatar}
-              alt={partnerName}
-              className="w-9 h-9 rounded-full object-cover bg-neutral-200"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold flex items-center justify-center text-xs">
-              {partnerName?.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <div className="relative">
+            {partnerAvatar ? (
+              <img
+                src={partnerAvatar}
+                alt={partnerName}
+                className="w-9 h-9 rounded-full object-cover bg-neutral-200"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold flex items-center justify-center text-xs">
+                {partnerName?.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-neutral-900 rounded-full" />
+          </div>
 
           <div>
             <h2 className="text-sm font-bold text-neutral-900 dark:text-white leading-tight">
               {partnerName}
             </h2>
-            <p className="text-[11px] text-neutral-500">
-              {isBuyer ? 'Penjual' : 'Pembeli'}
-            </p>
+            {partnerIsTyping ? (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold animate-pulse">
+                Sedang mengetik...
+              </p>
+            ) : (
+              <p className="text-[11px] text-neutral-500">
+                {isBuyer ? 'Penjual' : 'Pembeli'}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Product Card summary */}
         <button
           onClick={() => navigate(`/product/${conversation.productId}`)}
-          className="flex items-center gap-2 p-1.5 pl-2 pr-3 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl transition-colors text-left"
+          className="flex items-center gap-2 p-1.5 pl-2 pr-3 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl transition-all hover:scale-105 active:scale-95 text-left"
         >
           {conversation.productImage ? (
             <img
@@ -161,10 +176,10 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
       {/* Messages Feed */}
       <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-neutral-50/50 dark:bg-neutral-950/50">
         
-        {/* Info Banner */}
+        {/* Security / System Info Banner */}
         <div className="text-center my-2">
           <span className="px-3 py-1 bg-neutral-200/60 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-400 text-[10px] rounded-full font-medium">
-            Percakapan dilindungi & dipantau oleh Anasagi Store
+            Pesan terenkripsi & dipantau oleh Anasagi Store
           </span>
         </div>
 
@@ -202,7 +217,7 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
                     <p className="font-bold text-neutral-900 dark:text-white tabular-nums">
                       {formatRupiah(conversation.productPrice)}
                     </p>
-                    <p className="text-[10px] text-neutral-500">Klik untuk membuka detail produk</p>
+                    <p className="text-[10px] text-neutral-500">Klik untuk melihat rincian produk</p>
                   </div>
                 </div>
               )}
@@ -218,7 +233,7 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
                 {msg.content}
               </div>
 
-              {/* Message Timestamp & Read Status */}
+              {/* Timestamp & Read Receipts Mark 2 Indicator */}
               <div
                 className={`flex items-center gap-1 text-[10px] text-neutral-400 mt-1 ${
                   isMe ? 'pr-1' : 'pl-1'
@@ -227,9 +242,13 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
                 <span>{timeAgo(msg.createdAt)}</span>
                 {isMe && (
                   msg.isRead ? (
-                    <span title="Terbaca"><CheckCheck className="w-3 h-3 text-emerald-500" /></span>
+                    <span title="Dibaca (Centang 2 Biru)" className="flex items-center gap-0.5 text-sky-500 dark:text-sky-400 font-bold">
+                      <CheckCheck className="w-3.5 h-3.5" />
+                    </span>
                   ) : (
-                    <span title="Terkirim"><Check className="w-3 h-3 text-neutral-400" /></span>
+                    <span title="Terkirim (Centang 2 Abu)" className="flex items-center gap-0.5 text-neutral-400 font-medium">
+                      <CheckCheck className="w-3.5 h-3.5" />
+                    </span>
                   )
                 )}
               </div>
@@ -237,6 +256,39 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
             </div>
           );
         })}
+
+        {/* Realtime Partner Typing Indicator Bubble */}
+        <AnimatePresence>
+          {partnerIsTyping && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="flex items-center gap-2"
+            >
+              {partnerAvatar ? (
+                <img
+                  src={partnerAvatar}
+                  alt={partnerName}
+                  className="w-6 h-6 rounded-full object-cover bg-neutral-200"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-neutral-900 text-white text-[10px] font-bold flex items-center justify-center">
+                  {partnerName?.charAt(0).toUpperCase()}
+                </div>
+              )}
+
+              <div className="px-3 py-2 bg-neutral-200/80 dark:bg-neutral-800 rounded-2xl rounded-bl-xs flex items-center gap-1">
+                <span className="text-xs text-neutral-600 dark:text-neutral-300 font-medium mr-1">
+                  {partnerName} sedang mengetik
+                </span>
+                <span className="w-1.5 h-1.5 bg-neutral-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-neutral-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-neutral-500 rounded-full animate-bounce" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div ref={messagesEndRef} />
       </div>
@@ -249,7 +301,7 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
         <div className="flex-1 relative">
           <textarea
             value={inputMsg}
-            onChange={(e) => setInputMsg(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Tulis pesan... (Enter untuk kirim, Shift+Enter untuk baris baru)"
             rows={1}
@@ -264,9 +316,9 @@ export function ChatRoomPage({ conversationId, navigate }: ChatRoomPageProps) {
         <button
           type="submit"
           disabled={!inputMsg.trim() || sending}
-          className={`p-2.5 rounded-xl transition-all shrink-0 ${
+          className={`p-2.5 rounded-xl transition-all duration-200 shrink-0 ${
             inputMsg.trim() && !sending
-              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm hover:opacity-90'
+              ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-sm hover:scale-105 active:scale-95'
               : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
           }`}
         >

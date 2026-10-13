@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   collection,
   query,
@@ -73,6 +73,10 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const conversationRef = useRef<Conversation | null>(null);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef<boolean>(false);
+
   useEffect(() => {
     if (!conversationId) {
       setMessages([]);
@@ -87,6 +91,7 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
       if (snap.exists()) {
         const data = { id: snap.id, ...(snap.data() as Omit<Conversation, 'id'>) };
         setConversation(data);
+        conversationRef.current = data;
 
         // Clear unread count for current user
         if (currentUserId) {
@@ -137,10 +142,55 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
     };
   }, [conversationId, currentUserId]);
 
+  const partnerIsTyping = Boolean(
+    conversation &&
+      currentUserId &&
+      (conversation.buyerId === currentUserId
+        ? conversation.isSellerTyping
+        : conversation.isBuyerTyping)
+  );
+
+  const updateTypingInFirestore = async (isTyping: boolean) => {
+    const conv = conversationRef.current || conversation;
+    if (!conversationId || !conv || !currentUserId) return;
+
+    const isBuyer = conv.buyerId === currentUserId;
+    const fieldToUpdate = isBuyer ? 'isBuyerTyping' : 'isSellerTyping';
+    const convDoc = doc(db, 'conversations', conversationId);
+
+    try {
+      await updateDoc(convDoc, { [fieldToUpdate]: isTyping });
+      isTypingRef.current = isTyping;
+    } catch (err) {
+      console.warn('Failed to update typing status:', err);
+    }
+  };
+
+  const handleTyping = () => {
+    if (!isTypingRef.current) {
+      updateTypingInFirestore(true);
+    }
+
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+
+    typingTimerRef.current = setTimeout(() => {
+      updateTypingInFirestore(false);
+    }, 2500);
+  };
+
   const sendMessage = async (content: string, senderProfile: UserProfile) => {
     if (!conversationId || !conversation || !currentUserId) return;
     const trimmed = content.trim();
     if (!trimmed || trimmed.length > 1000) return;
+
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+
+    // Reset typing status on send
+    updateTypingInFirestore(false);
 
     const path = `conversations/${conversationId}/messages`;
     try {
@@ -165,15 +215,17 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
       await updateDoc(convRef, {
         lastMessage: trimmed,
         lastMessageAt: now,
+        lastMessageSenderId: currentUserId,
         unreadBuyerCount: isBuyer ? conversation.unreadBuyerCount : (conversation.unreadBuyerCount || 0) + 1,
         unreadSellerCount: !isBuyer ? conversation.unreadSellerCount : (conversation.unreadSellerCount || 0) + 1,
+        ...(isBuyer ? { isBuyerTyping: false } : { isSellerTyping: false }),
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, path);
     }
   };
 
-  return { conversation, messages, loading, sendMessage };
+  return { conversation, messages, partnerIsTyping, handleTyping, loading, sendMessage };
 }
 
 // Function to find existing conversation or create a new one
@@ -194,39 +246,44 @@ export async function getOrCreateConversation(
   const convRef = doc(db, 'conversations', convId);
 
   try {
-    const snap = await getDoc(convRef);
-    if (snap.exists()) {
-      return convId;
+    try {
+      const snap = await getDoc(convRef);
+      if (snap.exists()) {
+        return convId;
+      }
+    } catch (e) {
+      console.warn('Doc check skipped, proceeding to create conversation:', e);
     }
 
-    // Create conversation document
     const now = new Date().toISOString();
     const buyerName = buyerProfile.name || auth.currentUser?.displayName || 'Pembeli';
     const buyerAvatar = buyerProfile.avatarUrl || auth.currentUser?.photoURL || '';
 
     const newConv: Conversation = {
       id: convId,
-      productId: product.id,
-      productName: product.name,
-      productPrice: product.price,
+      productId: product.id || '',
+      productName: product.name || 'Produk',
+      productPrice: product.price || 0,
       productImage: product.images?.[product.mainImageIndex || 0] || product.images?.[0] || '',
       buyerId: currentUid,
       buyerName,
       buyerAvatar,
-      sellerId: product.sellerId,
+      sellerId: product.sellerId || '',
       sellerName: product.sellerName || 'Penjual',
       sellerAvatar: product.sellerAvatar || '',
       participantIds: [currentUid, product.sellerId],
       lastMessage: `Menanyakan tentang ${product.name}`,
       lastMessageAt: now,
+      lastMessageSenderId: currentUid,
       unreadBuyerCount: 0,
       unreadSellerCount: 1,
+      isBuyerTyping: false,
+      isSellerTyping: false,
       createdAt: now,
     };
 
     await setDoc(convRef, newConv);
 
-    // Auto send initial product card as first message
     const msgCol = collection(db, 'conversations', convId, 'messages');
     const firstMsg: Omit<Message, 'id'> = {
       conversationId: convId,

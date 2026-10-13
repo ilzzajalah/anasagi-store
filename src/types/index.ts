@@ -52,8 +52,11 @@ export interface Conversation {
   participantIds: string[];
   lastMessage: string;
   lastMessageAt: string;
+  lastMessageSenderId?: string;
   unreadBuyerCount: number;
   unreadSellerCount: number;
+  isBuyerTyping?: boolean;
+  isSellerTyping?: boolean;
   createdAt: string;
 }
 

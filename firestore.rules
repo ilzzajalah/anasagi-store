@@ -33,23 +33,32 @@ service cloud.firestore {
 
     // Conversations
     match /conversations/{conversationId} {
-      allow read: if isSignedIn() && (
+      // Allow single doc GET for signed-in users
+      allow get: if isSignedIn();
+
+      // Allow LIST queries if user is participant
+      allow list: if isSignedIn() && (
         resource.data.buyerId == request.auth.uid ||
         resource.data.sellerId == request.auth.uid ||
         (resource.data.participantIds != null && request.auth.uid in resource.data.participantIds)
       );
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+
+      // Allow CREATE if signed in
+      allow create: if isSignedIn();
+
+      // Allow UPDATE if signed in and user is participant
       allow update: if isSignedIn() && (
         resource.data.buyerId == request.auth.uid ||
         resource.data.sellerId == request.auth.uid ||
         (resource.data.participantIds != null && request.auth.uid in resource.data.participantIds)
       );
+
       allow delete: if false;
 
       // Messages subcollection
       match /messages/{messageId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow create: if isSignedIn();
         allow update, delete: if false;
       }
     }

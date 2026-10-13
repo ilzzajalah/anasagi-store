@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Product } from '../types';
+import { Product, UserProfile } from '../types';
 import { formatRupiah, timeAgo } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { getOrCreateConversation } from '../hooks/useConversations';
@@ -62,23 +62,30 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
       return;
     }
 
-    if (!profile) return;
+    if (!product) return;
 
-    if (user.uid === product?.sellerId) {
+    if (user.uid === product.sellerId) {
       toast.error('Ini adalah produk milik Anda sendiri.');
       return;
     }
 
-    if (!product) return;
-
     setStartingChat(true);
     try {
-      const conversationId = await getOrCreateConversation(profile, product);
+      // Robust fallback so mobile users never get blocked if profile is loading
+      const activeProfile: UserProfile = profile || {
+        id: user.uid,
+        name: user.displayName || user.email?.split('@')[0] || 'Pembeli',
+        email: user.email || '',
+        avatarUrl: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.email || 'User')}&backgroundColor=000000&textColor=ffffff`,
+        createdAt: new Date().toISOString(),
+      };
+
+      const conversationId = await getOrCreateConversation(activeProfile, product);
       toast.success('Percakapan dibuka');
       navigate(`/chat/${conversationId}`);
     } catch (err: any) {
       console.error('Failed to open chat:', err);
-      toast.error(err.message || 'Gagal memulai chat dengan penjual');
+      toast.error(err.message || 'Gagal memulai chat dengan penjual.');
     } finally {
       setStartingChat(false);
     }
