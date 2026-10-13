@@ -11,7 +11,7 @@ import {
   getDoc,
   orderBy,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Conversation, Message, Product, UserProfile } from '../types';
 import { formatRupiah } from '../lib/utils';
 
@@ -178,14 +178,19 @@ export function useChatRoom(conversationId?: string, currentUserId?: string) {
 
 // Function to find existing conversation or create a new one
 export async function getOrCreateConversation(
-  buyer: UserProfile,
+  buyerProfile: UserProfile,
   product: Product
 ): Promise<string> {
-  if (buyer.id === product.sellerId) {
+  const currentUid = auth.currentUser?.uid || buyerProfile.id;
+  if (!currentUid) {
+    throw new Error('Anda harus login terlebih dahulu.');
+  }
+
+  if (currentUid === product.sellerId) {
     throw new Error('Anda tidak dapat mengirim pesan ke produk milik sendiri.');
   }
 
-  const convId = `${buyer.id}_${product.sellerId}_${product.id}`;
+  const convId = `${currentUid}_${product.sellerId}_${product.id}`;
   const convRef = doc(db, 'conversations', convId);
 
   try {
@@ -196,19 +201,22 @@ export async function getOrCreateConversation(
 
     // Create conversation document
     const now = new Date().toISOString();
+    const buyerName = buyerProfile.name || auth.currentUser?.displayName || 'Pembeli';
+    const buyerAvatar = buyerProfile.avatarUrl || auth.currentUser?.photoURL || '';
+
     const newConv: Conversation = {
       id: convId,
       productId: product.id,
       productName: product.name,
       productPrice: product.price,
-      productImage: product.images[product.mainImageIndex || 0] || '',
-      buyerId: buyer.id,
-      buyerName: buyer.name,
-      buyerAvatar: buyer.avatarUrl || '',
+      productImage: product.images?.[product.mainImageIndex || 0] || product.images?.[0] || '',
+      buyerId: currentUid,
+      buyerName,
+      buyerAvatar,
       sellerId: product.sellerId,
-      sellerName: product.sellerName,
+      sellerName: product.sellerName || 'Penjual',
       sellerAvatar: product.sellerAvatar || '',
-      participantIds: [buyer.id, product.sellerId],
+      participantIds: [currentUid, product.sellerId],
       lastMessage: `Menanyakan tentang ${product.name}`,
       lastMessageAt: now,
       unreadBuyerCount: 0,
@@ -222,8 +230,8 @@ export async function getOrCreateConversation(
     const msgCol = collection(db, 'conversations', convId, 'messages');
     const firstMsg: Omit<Message, 'id'> = {
       conversationId: convId,
-      senderId: buyer.id,
-      senderName: buyer.name,
+      senderId: currentUid,
+      senderName: buyerName,
       content: `Halo, saya tertarik dengan produk ${product.name} (${formatRupiah(product.price)}). Apakah masih tersedia?`,
       isProductCard: true,
       productId: product.id,
