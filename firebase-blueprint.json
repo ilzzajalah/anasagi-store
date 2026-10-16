@@ -32,10 +32,55 @@
         "images": { "type": "array" },
         "mainImageIndex": { "type": "number" },
         "isActive": { "type": "boolean" },
+        "ratingAverage": { "type": "number" },
+        "ratingCount": { "type": "number" },
+        "salesCount": { "type": "number" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "sellerId", "name", "description", "price", "stock", "category", "condition", "images", "isActive", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Product rating and review submitted by buyers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "images": { "type": "array" },
+        "isVerifiedPurchase": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "productId", "sellerId", "userId", "userName", "rating", "createdAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Transaction order placed by buyer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "productImage": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "pricePerUnit": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pending", "Diproses", "Dikirim", "Selesai", "Dibatalkan"] },
+        "shippingAddress": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "productId", "sellerId", "buyerId", "totalPrice", "status", "createdAt"]
     },
     "Conversation": {
       "title": "Conversation",
@@ -88,6 +133,14 @@
     "/products/{productId}": {
       "schema": { "$ref": "#/entities/Product" },
       "description": "Marketplace products collection"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Product ratings and reviews collection"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Purchased product orders collection"
     },
     "/conversations/{conversationId}": {
       "schema": { "$ref": "#/entities/Conversation" },

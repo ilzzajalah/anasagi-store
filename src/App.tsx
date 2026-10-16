@@ -15,6 +15,8 @@ import { EditProductPage } from './pages/EditProductPage';
 import { InboxPage } from './pages/InboxPage';
 import { ChatRoomPage } from './pages/ChatRoomPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { SellerDashboardPage } from './pages/SellerDashboardPage';
+import { MyOrdersPage } from './pages/MyOrdersPage';
 import { Toaster } from 'sonner';
 
 function AppContent() {
@@ -119,6 +121,14 @@ function AppContent() {
       return protect(<EditProductPage productId={productId} navigate={navigate} />);
     }
 
+    if (pathname === '/seller/dashboard' || pathname === '/seller/analytics') {
+      return protect(<SellerDashboardPage navigate={navigate} />);
+    }
+
+    if (pathname === '/my-orders') {
+      return protect(<MyOrdersPage navigate={navigate} />);
+    }
+
     if (pathname === '/inbox') {
       return protect(<InboxPage navigate={navigate} />);
     }
@@ -157,12 +167,12 @@ function AppContent() {
         <Toaster position="top-center" richColors />
         <Navbar currentPath={pathname} navigate={navigate} />
 
-        <main className="flex-1 w-full overflow-hidden">
+        <main className="flex-1 w-full overflow-hidden flex flex-col min-h-0">
           {renderRoute()}
         </main>
 
         {!isIndividualChat && (
-          <div className="md:hidden">
+          <div className="md:hidden shrink-0">
             <MobileBottomNav currentPath={pathname} navigate={navigate} />
           </div>
         )}
@@ -175,7 +185,7 @@ function AppContent() {
       <Toaster position="top-center" richColors />
       <Navbar currentPath={pathname} navigate={navigate} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-20 sm:pb-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 sm:pb-8">
         {renderRoute()}
       </main>
 
@@ -185,7 +195,7 @@ function AppContent() {
   );
 }
 
-export default function App() {
+export function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -194,3 +204,5 @@ export default function App() {
     </ThemeProvider>
   );
 }
+
+export default App;

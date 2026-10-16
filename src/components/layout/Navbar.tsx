@@ -9,6 +9,8 @@ import {
   LogOut,
   Store,
   ChevronDown,
+  TrendingUp,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -49,7 +51,7 @@ export function Navbar({ currentPath, navigate, onSearchSubmit }: NavbarProps) {
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 sm:gap-8">
         
-        {/* Zone 1: Clean Wordmark - Removed "A" logo badge */}
+        {/* Zone 1: Wordmark & Quick Nav */}
         <div className="flex items-center gap-6 shrink-0">
           <button
             onClick={() => navigate('/')}
@@ -59,7 +61,7 @@ export function Navbar({ currentPath, navigate, onSearchSubmit }: NavbarProps) {
           </button>
 
           {/* Quick Nav desktop */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-neutral-600 dark:text-neutral-400">
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-medium text-neutral-600 dark:text-neutral-400">
             <button
               onClick={() => navigate('/')}
               className={`transition-all duration-200 hover:scale-105 active:scale-95 hover:text-neutral-900 dark:hover:text-white ${
@@ -68,6 +70,7 @@ export function Navbar({ currentPath, navigate, onSearchSubmit }: NavbarProps) {
             >
               Beranda
             </button>
+
             <button
               onClick={() => navigate('/search')}
               className={`transition-all duration-200 hover:scale-105 active:scale-95 hover:text-neutral-900 dark:hover:text-white ${
@@ -76,6 +79,18 @@ export function Navbar({ currentPath, navigate, onSearchSubmit }: NavbarProps) {
             >
               Cari Produk
             </button>
+
+            {user && (
+              <button
+                onClick={() => navigate('/seller/dashboard')}
+                className={`transition-all duration-200 hover:scale-105 active:scale-95 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 font-bold ${
+                  currentPath.startsWith('/seller') ? 'text-emerald-600 dark:text-emerald-400 underline underline-offset-4' : 'text-emerald-600 dark:text-emerald-400'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>Statistik Penjualan</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -156,7 +171,7 @@ export function Navbar({ currentPath, navigate, onSearchSubmit }: NavbarProps) {
                 {profileDropdownOpen && (
                   <div
                     onClick={() => setProfileDropdownOpen(false)}
-                    className="absolute right-0 mt-2 w-56 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl py-2 z-50 text-sm transition-all duration-200 animate-in fade-in slide-in-from-top-2"
+                    className="absolute right-0 mt-2 w-60 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl py-2 z-50 text-sm transition-all duration-200 animate-in fade-in slide-in-from-top-2"
                   >
                     <div className="px-4 py-2 border-b border-neutral-100 dark:border-neutral-900">
                       <p className="font-bold text-neutral-900 dark:text-white truncate">
@@ -164,6 +179,22 @@ export function Navbar({ currentPath, navigate, onSearchSubmit }: NavbarProps) {
                       </p>
                       <p className="text-xs text-neutral-500 truncate">{user.email}</p>
                     </div>
+
+                    <button
+                      onClick={() => navigate('/seller/dashboard')}
+                      className="w-full text-left px-4 py-2.5 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2 transition-colors text-xs"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      Statistik Penjualan
+                    </button>
+
+                    <button
+                      onClick={() => navigate('/my-orders')}
+                      className="w-full text-left px-4 py-2.5 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center gap-2 transition-colors font-medium text-xs"
+                    >
+                      <ShoppingBag className="w-4 h-4" />
+                      Pesanan Saya
+                    </button>
 
                     <button
                       onClick={() => navigate('/my-products')}

@@ -6,6 +6,9 @@ import { formatRupiah, timeAgo } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { getOrCreateConversation } from '../hooks/useConversations';
 import { deleteProduct } from '../hooks/useProducts';
+import { createOrder } from '../hooks/useSalesStats';
+import { ProductRatingStars } from '../components/product/ProductRatingStars';
+import { ProductReviewsSection } from '../components/product/ProductReviewsSection';
 import {
   MessageSquare,
   Share2,
@@ -17,6 +20,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   AlertCircle,
+  ShoppingBag,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,6 +40,12 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
   const [startingChat, setStartingChat] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Buy Now Modal state
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [buyQty, setBuyQty] = useState(1);
+  const [buyNotes, setBuyNotes] = useState('');
+  const [ordering, setOrdering] = useState(false);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -71,7 +83,6 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
 
     setStartingChat(true);
     try {
-      // Robust fallback so mobile users never get blocked if profile is loading
       const activeProfile: UserProfile = profile || {
         id: user.uid,
         name: user.displayName || user.email?.split('@')[0] || 'Pembeli',
@@ -88,6 +99,53 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
       toast.error(err.message || 'Gagal memulai chat dengan penjual.');
     } finally {
       setStartingChat(false);
+    }
+  };
+
+  const handleBuySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !product) {
+      navigate(`/login?redirect=${encodeURIComponent(`/product/${productId}`)}`);
+      return;
+    }
+
+    if (user.uid === product.sellerId) {
+      toast.error('Anda tidak dapat membeli produk sendiri.');
+      return;
+    }
+
+    if (buyQty > product.stock) {
+      toast.error(`Stok hanya tersisa ${product.stock} pcs.`);
+      return;
+    }
+
+    setOrdering(true);
+    try {
+      const activeName = profile?.name || user.displayName || user.email?.split('@')[0] || 'Pembeli';
+      await createOrder({
+        sellerId: product.sellerId,
+        sellerName: product.sellerName,
+        buyerId: user.uid,
+        buyerName: activeName,
+        buyerAvatar: profile?.avatarUrl || user.photoURL || undefined,
+        productId: product.id,
+        productName: product.name,
+        productImage: product.images?.[0],
+        quantity: buyQty,
+        pricePerUnit: product.price,
+        totalPrice: product.price * buyQty,
+        paymentMethod: 'Transfer / COD',
+        notes: buyNotes.trim(),
+      });
+
+      toast.success('Pesanan berhasil dibuat!');
+      setShowBuyModal(false);
+      navigate('/my-orders');
+    } catch (err) {
+      console.error('Failed to create order:', err);
+      toast.error('Gagal membuat pesanan.');
+    } finally {
+      setOrdering(false);
     }
   };
 
@@ -236,6 +294,20 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
                 {product.name}
               </h1>
 
+              {/* Rating Overview & Sales Badge */}
+              <div className="flex items-center gap-3 mt-2 text-xs">
+                <ProductRatingStars
+                  rating={product.ratingAverage || 0}
+                  reviewCount={product.ratingCount || 0}
+                  showScore={true}
+                  size="sm"
+                />
+                <span className="text-neutral-300 dark:text-neutral-700">|</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  Terjual {product.salesCount || 0} pcs
+                </span>
+              </div>
+
               {/* Price strictly formatted as Rp 1.000.000 */}
               <p className="text-3xl font-black text-neutral-900 dark:text-white tracking-tight tabular-nums mt-3">
                 {formatRupiah(product.price)}
@@ -281,20 +353,43 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
                   </motion.button>
                 </div>
               ) : (
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleChatSeller}
-                  disabled={startingChat || isOutOfStock}
-                  className={`w-full py-3.5 px-4 text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${
-                    isOutOfStock
-                      ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
-                      : 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100'
-                  }`}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  {startingChat ? 'Membuka Chat...' : 'Chat Penjual'}
-                </motion.button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      if (!user) {
+                        navigate(`/login?redirect=${encodeURIComponent(`/product/${productId}`)}`);
+                        return;
+                      }
+                      setShowBuyModal(true);
+                    }}
+                    disabled={isOutOfStock}
+                    className={`py-3.5 px-4 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${
+                      isOutOfStock
+                        ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Beli Sekarang</span>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleChatSeller}
+                    disabled={startingChat || isOutOfStock}
+                    className={`py-3.5 px-4 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md ${
+                      isOutOfStock
+                        ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
+                        : 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100'
+                    }`}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    {startingChat ? 'Membuka Chat...' : 'Chat Penjual'}
+                  </motion.button>
+                </div>
               )}
 
               <motion.button
@@ -353,6 +448,105 @@ export function ProductDetailPage({ productId, navigate }: ProductDetailPageProp
         </div>
 
       </div>
+
+      {/* Embedded Full Stack Reviews & Rating Section */}
+      <ProductReviewsSection
+        product={product}
+        currentUser={profile}
+        navigate={navigate}
+      />
+
+      {/* Buy Now Order Modal */}
+      <AnimatePresence>
+        {showBuyModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              className="bg-white dark:bg-neutral-900 p-6 rounded-2xl max-w-md w-full space-y-5 border border-neutral-200 dark:border-neutral-800 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-emerald-500" />
+                  <span>Konfirmasi Pembelian</span>
+                </h3>
+                <button
+                  onClick={() => setShowBuyModal(false)}
+                  className="p-1 text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleBuySubmit} className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                  {product.images?.[0] && (
+                    <img src={product.images[0]} alt={product.name} className="w-12 h-12 rounded-lg object-cover bg-neutral-200 shrink-0" />
+                  )}
+                  <div className="text-xs min-w-0">
+                    <p className="font-bold text-neutral-900 dark:text-white truncate">{product.name}</p>
+                    <p className="font-bold text-emerald-600 dark:text-emerald-400">{formatRupiah(product.price)}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Jumlah (Stok: {product.stock}):
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={product.stock}
+                    value={buyQty}
+                    onChange={(e) => setBuyQty(Math.min(product.stock, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="w-full p-2.5 text-xs bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-neutral-900 dark:text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Catatan untuk Penjual (Opsional):
+                  </label>
+                  <input
+                    type="text"
+                    value={buyNotes}
+                    onChange={(e) => setBuyNotes(e.target.value)}
+                    placeholder="Contoh: Tolong bungkus dengan bubble wrap"
+                    className="w-full p-2.5 text-xs bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl text-neutral-900 dark:text-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-900 flex items-center justify-between text-xs">
+                  <span className="font-medium text-emerald-800 dark:text-emerald-300">Total Pembayaran:</span>
+                  <span className="font-black text-emerald-900 dark:text-emerald-200 tabular-nums text-sm">
+                    {formatRupiah(product.price * buyQty)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBuyModal(false)}
+                    className="px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={ordering}
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-md flex items-center gap-1.5"
+                  >
+                    {ordering ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span>Buat Pesanan Sekarang</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>

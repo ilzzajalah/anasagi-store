@@ -33,8 +33,54 @@ export interface Product {
   images: string[]; // 1 to 5 image URLs or base64
   mainImageIndex: number;
   isActive: boolean;
+  ratingAverage?: number; // e.g. 4.8
+  ratingCount?: number;    // total reviews count
+  salesCount?: number;     // total units sold
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Review {
+  id: string;
+  productId: string;
+  productName?: string;
+  sellerId?: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  rating: number; // 1 to 5 stars
+  comment: string;
+  photoUrl?: string;
+  isVerifiedBuyer?: boolean;
+  sellerReply?: {
+    replyText: string;
+    createdAt: string;
+  };
+  createdAt: string;
+}
+
+export type OrderStatus = 'Pending' | 'Diproses' | 'Dikirim' | 'Selesai' | 'Dibatalkan';
+
+export interface Order {
+  id: string;
+  sellerId: string;
+  sellerName?: string;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatar?: string;
+  productId: string;
+  productName: string;
+  productImage?: string;
+  quantity: number;
+  pricePerUnit: number;
+  totalPrice: number;
+  status: OrderStatus;
+  paymentMethod?: string;
+  shippingAddress?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  completedAt?: string;
 }
 
 export interface Conversation {
@@ -83,5 +129,5 @@ export interface ProductFilterOptions {
   minPrice?: number;
   maxPrice?: number;
   condition?: string;
-  sortBy?: 'newest' | 'price_asc' | 'price_desc';
+  sortBy?: 'newest' | 'price_asc' | 'price_desc' | 'rating' | 'popular';
 }
